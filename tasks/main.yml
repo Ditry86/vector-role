@@ -1,0 +1,38 @@
+---
+  - name: Get vector rpm
+    ansible.builtin.get_url:
+      url: "https://packages.timber.io/vector/{{ vector_version }}/vector-{{ vector_version }}-1.{{ ansible_architecture }}.rpm"
+      dest: "./vector-{{ vector_version }}.rpm"
+      mode: '0755'
+  - name: Install vector
+    become: true
+    ansible.builtin.yum:
+      name: "{{ ansible_user_dir }}/vector-{{ vector_version }}.rpm"
+      state: present
+  - name: Configure Vector | Template config
+    become: true
+    ansible.builtin.template:
+      src: vector.yml.j2
+      mode: 0644
+      dest: "{{ vector_config_dir }}/vector.yml"
+  - name: Enable vector service
+    become: true
+    ansible.builtin.service:
+      name: vector
+      enabled: true
+  - name: Change systemd vector.service unit (start with required config)
+    become: true
+    ansible.builtin.replace:
+      path: /etc/systemd/system/multi-user.target.wants/vector.service
+      regexp: '[$]'
+      after: "^(usr/bin/vector)[/s]*[a-z]*"
+      #before: "$"
+      replace: "--config-yaml={{ vector_config_dir }}/vector.yml"
+  - name: Create source log file
+    become: true
+    ansible.builtin.file:
+      path: "{{ ansible_user_dir }}/test.log"
+      state: touch
+      mode: 0644
+    notify: 
+      - Restart vector
